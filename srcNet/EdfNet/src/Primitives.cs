@@ -42,7 +42,7 @@ public static class Primitives
             default: w = 0; return EdfErr.WrongType;
             case PoType.Char:
             case PoType.UInt8: dst[0] = (byte)obj; break;
-            case PoType.Int8: dst[0] = (byte)obj; break;
+            case PoType.Int8: MemoryMarshal.Write(dst, (sbyte)obj); break;
             case PoType.UInt16: MemoryMarshal.Write(dst, (ushort)obj); break;
             case PoType.Int16: MemoryMarshal.Write(dst, (short)obj); break;
             case PoType.UInt32: MemoryMarshal.Write(dst, (uint)obj); break;
