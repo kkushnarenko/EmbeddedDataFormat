@@ -1,235 +1,113 @@
+using NetEdf;
 using NetEdf.src;
+using System.CodeDom.Compiler;
 
 namespace NetEdfTest;
 
 [TestClass]
 public class TestPrimitives
 {
-    [TestMethod]
-    public void TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow()
+   
+    public void TrySrcBin_ObjIsStruct_ErrIsOk<T>(PoType type, T obj, Span<byte> dst) where T : struct
     {
-        var type = PoType.Int16;
-        short obj = 1234;
-        Span<byte> dst = new byte[1];
-        var errExpected = EdfErr.DstBufOverflow;
+        Span<byte> expectedDst = new byte[dst.Length];
+        MemoryMarshal.Write(expectedDst, obj);
 
         var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
 
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //PoType t один тип а obj другой
-    [TestMethod]
-    public void TrySrcToBin_PoTypeAndObjDifferentType_ErrWrongType()
-    {
-        var type = PoType.Int16;
-        int obj = 1234;
-        Span<byte> dst = new byte[4];
-        var errExpected = EdfErr.WrongType;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //Безнаковый UInt8
-    [TestMethod]
-    public void TrySrcToBin_ObjIsUInt8_ErrIsOk()
-    {
-        var type = PoType.UInt8;
-        byte obj = 123;
-        Span<byte> dst = new byte[1];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //[TestMethod]
-    //public void TrySrcToBin_DstIsCurrectInt8_ErrIsOk()
-    //{
-    //    var type = PoType.UInt8;
-    //    byte obj = 123;
-    //    Span<byte> dst = new byte[1] {0x7B};
-    //    var errExpected = EdfErr.IsOk;
-
-    //    var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-    //    Assert.AreEqual(dst, actual);
-    //}
-
-    public void TrySrcToBin_Int8(sbyte val)
-    {
-        Span<byte> dst = new byte[1];
-        var actual = Primitives.TrySrcToBin(PoType.Int8, val, dst, out int w);
         Assert.AreEqual(EdfErr.IsOk, actual);
         Assert.AreEqual(dst.Length, w);
-        Assert.AreEqual(val, unchecked((sbyte)dst[0]));
+        Assert.IsTrue(expectedDst.SequenceEqual(dst));
     }
-    //Знаковый UInt8
-    [TestMethod(DisplayName = "тест Int8")]
-    public void TrySrcToBin_NegativeObjIsInt8_ErrIsOk()
+    public void TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType type, object obj, Span<byte> dst)
     {
-        TrySrcToBin_Int8(sbyte.MinValue/2);
-        TrySrcToBin_Int8(sbyte.MaxValue/2);
-        TrySrcToBin_Int8(sbyte.MinValue);
-        TrySrcToBin_Int8(sbyte.MaxValue);
-        TrySrcToBin_Int8(-1);
-        TrySrcToBin_Int8(0);
-    }
+        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
 
-    [TestMethod]
-    
-    public void TrySrcToBin_PositiveObjIsInt8_ErrIsOk()
+        Assert.AreEqual(EdfErr.DstBufOverflow, actual);
+    }
+    public void TrySrcToBin_ObjIsStruct_ErrWrongType(PoType type, object obj, Span<byte> dst)
     {
-        var type = PoType.Int8;
-        sbyte obj = 127;
-        Span<byte> dst = new byte[1];
-        var errExpected = EdfErr.IsOk;
+        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
+
+        Assert.AreEqual(EdfErr.WrongType, actual);
+    }
+    public void TrySrcBin_ObjIsSting_ErrIsOk(PoType type, object obj, Span<byte> dst)
+    {
+        Span<byte> expectedDst = new byte[dst.Length];
+        int len = EdfBinString.WriteBin((string)obj, expectedDst);
 
         var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
 
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //Беззнаковый UInt16
-    [TestMethod]
-    public void TrySrcToBin_ObjIsUInt16_ErrIsOk()
-    {
-        var type = PoType.UInt16;
-        ushort obj = 65535;
-        Span<byte> dst = new byte[2];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //Знаковый Int16
-    [TestMethod]
-    public void TrySrcToBin_PositiveObjIsInt16_ErrIsOk()
-    {
-        var type = PoType.Int16;
-        short obj = 32767;
-        Span<byte> dst = new byte[2];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(len, w);
+        Assert.IsTrue(expectedDst.SequenceEqual(dst));
     }
 
     [TestMethod]
-    public void TrySrcToBin_NegativeObjIsInt16_ErrIsOk()
+    public void TestTrySrcToBin()
     {
-        var type = PoType.Int16;
-        short obj = -32768;
-        Span<byte> dst = new byte[2];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
+        //EdfErr.DstBufOverflow
+        TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType.Int16, 123, new byte[1]);
+        TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType.String, "1234", new byte[1]);
+        //Struct
+        TrySrcToBin_ObjIsStruct_ErrWrongType(PoType.Struct, 1, new byte[1]);
+        //UInt8
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, byte.MinValue, new byte[1]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, byte.MaxValue, new byte[1]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, (byte)123, new byte[1]);
+        //Int8
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, sbyte.MaxValue, new byte[1]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, sbyte.MinValue, new byte[1]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, (sbyte)-123, new byte[1]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, (sbyte)123, new byte[1]);
+        //UInt16
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, ushort.MaxValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, ushort.MinValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, (ushort)123, new byte[2]);
+        //Int16
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, short.MaxValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, short.MinValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, (short)123, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, (short)-123, new byte[2]);
+        //UInt32
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, uint.MaxValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, uint.MinValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, (uint)123, new byte[4]);
+        //Int32
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, int.MaxValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, int.MinValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, (int)123, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, (int)-123, new byte[4]);
+        //UInt64
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, ulong.MaxValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, ulong.MinValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, (ulong)123, new byte[8]);
+        //Int64
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, long.MaxValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, long.MinValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, (long)123, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, (long)-123, new byte[8]);
+        //Half
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.MaxValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.MinValue, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, (Half)6.75, new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, (Half)(-6.75), new byte[2]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.NaN, new byte[2]);
+        //Single
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.MaxValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.MinValue, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, (float)6.75, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, (float)-6.75, new byte[4]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.NaN, new byte[4]);
+        //Double
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.MaxValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.MinValue, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, (double)6.75, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, (double)-6.75, new byte[8]);
+        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.NaN, new byte[8]);
+        //Char
+        //       TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Char, 'a', new byte[1]);
+        //String
+        TrySrcBin_ObjIsSting_ErrIsOk(PoType.String, "aaaaa A aaaaa", new byte[20]);
     }
-
-    //Беззнаковый UInt32
-    [TestMethod]
-    public void TrySrcToBin_ObjIsUInt32_ErrIsOk()
-    {
-        var type = PoType.UInt32;
-        uint obj = 4294967295;
-        Span<byte> dst = new byte[4];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //Знаковый Int32
-    [TestMethod]
-    public void TrySrcToBin_PositiveObjIsInt32_ErrIsOk()
-    {
-        var type = PoType.Int32;
-        int obj = 2147483647;
-        Span<byte> dst = new byte[4];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    [TestMethod]
-    public void TrySrcToBin_NegativeObjIsInt32_ErrIsOk()
-    {
-        var type = PoType.Int32;
-        int obj = -2147483648;
-        Span<byte> dst = new byte[4];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-    //Беззнаковый UInt64
-    [TestMethod]
-    public void TrySrcToBin_ObjIsUInt64_ErrIsOk()
-    {
-        var type = PoType.UInt64;
-        ulong obj = 18446744073709551615;
-        Span<byte> dst = new byte[8];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-
-    }
-
-    //Знаковый Int64
-    [TestMethod]
-    public void TrySrcToBin_PositiveObjIsInt64_ErrIsOk()
-    {
-        var type = PoType.Int64;
-        long obj = 9223372036854775807;
-        Span<byte> dst = new byte[8];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-    [TestMethod]
-    public void TrySrcToBin_NegativeObjIsInt64_ErrIsOk()
-    {
-        var type = PoType.Int64;
-        long obj = -9223372036854775808;
-        Span<byte> dst = new byte[8];
-        var errExpected = EdfErr.IsOk;
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
-
-        Assert.AreEqual(errExpected, actual);
-    }
-
-
-    //Struct Half Single Double String Char
-
-    //Тест на NaN
-//    [TestMethod]
-    //public void TrySrcToBin_ObjIsHalfNaN_ErrObjIsNaN()
-    //{
-    //    var type = PoType.Half;
-    //    Half obj = Half.NaN;
-    //    Span<byte> dst = new byte[2];
-
-
-    //}
-
-
-
 }
