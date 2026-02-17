@@ -1,23 +1,29 @@
 using NetEdf;
 using NetEdf.src;
-using System.CodeDom.Compiler;
+using System.Security.Cryptography;
 
 namespace NetEdfTest;
 
 [TestClass]
 public class TestPrimitives
 {
-   
-    public void TrySrcBin_ObjIsStruct_ErrIsOk<T>(PoType type, T obj, Span<byte> dst) where T : struct
-    {
-        Span<byte> expectedDst = new byte[dst.Length];
-        MemoryMarshal.Write(expectedDst, obj);
 
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
+    public void TrySrcBinToSrc<T>(PoType type, T value, Span<byte> expected)
+        where T : struct
+    {
+        Span<byte> dst = new byte[10];
+   
+        var actual = Primitives.TrySrcToBin(type, value, dst, out int w);
 
         Assert.AreEqual(EdfErr.IsOk, actual);
-        Assert.AreEqual(dst.Length, w);
-        Assert.IsTrue(expectedDst.SequenceEqual(dst));
+        Assert.AreEqual(expected.Length, w);
+        Assert.IsTrue(dst.Slice(0, w).SequenceEqual(expected));
+
+        actual = Primitives.BinToSrc(type, dst, out int r, out object? obj);
+
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(expected.Length, r);
+        Assert.AreEqual(value, obj);
     }
     public void TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType type, object obj, Span<byte> dst)
     {
@@ -31,83 +37,132 @@ public class TestPrimitives
 
         Assert.AreEqual(EdfErr.WrongType, actual);
     }
-    public void TrySrcBin_ObjIsSting_ErrIsOk(PoType type, object obj, Span<byte> dst)
+    public void TrySrcBin_ObjIsSting_ErrIsOk(PoType type, object value, Span<byte> expected)
     {
-        Span<byte> expectedDst = new byte[dst.Length];
-        int len = EdfBinString.WriteBin((string)obj, expectedDst);
-
-        var actual = Primitives.TrySrcToBin(type, obj, dst, out int w);
+        Span<byte> dst = new byte[20];
+       
+        var actual = Primitives.TrySrcToBin(type, value, dst, out int w);
 
         Assert.AreEqual(EdfErr.IsOk, actual);
-        Assert.AreEqual(len, w);
-        Assert.IsTrue(expectedDst.SequenceEqual(dst));
+        Assert.AreEqual(expected.Length, w);
+        Assert.IsTrue(dst.Slice(0,w).SequenceEqual(expected));
+
+        actual = Primitives.BinToSrc(type, dst, out int r, out object? obj);
+
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(expected.Length, r);
+        Assert.AreEqual(value, obj);
     }
 
     [TestMethod]
-    public void TestTrySrcToBin()
+    public void TrySrcBin_Sting()
+    {
+        Span<byte> dst = new byte[10];
+        var actual = Primitives.TrySrcToBin(PoType.String, "012", dst, out int w);
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(4, w);
+        Span<byte> expected = [0x03, 0x30, 0x31, 0x32];
+        Assert.IsTrue(dst.Slice(0, w).SequenceEqual(expected));
+    }
+    [TestMethod]
+    public void TrySrcBin_Int32()
+    {
+        TrySrcBinSrc(PoType.Int32, Int32.MinValue, [0x00, 0x00, 0x00, 0x80]);
+        TrySrcBinSrc(PoType.Int32, (Int32)(-1), [0xFF, 0xFF, 0xFF, 0xFF]);
+        TrySrcBinSrc(PoType.Int32, (Int32)(-123), [0x85, 0xFF, 0xFF, 0xFF]);
+        TrySrcBinSrc(PoType.Int32, (Int32)0x78563412, [0x12, 0x34, 0x56, 0x78]);
+    }
+    
+    public void TrySrcBinSrc<T>(PoType type, T value, Span<byte> expected) where T : struct
+    {
+        Span<byte> dst = new byte[10];
+        var actual = Primitives.TrySrcToBin(type, value, dst, out int w);
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(4, w);
+        Assert.IsTrue(dst.Slice(0, w).SequenceEqual(expected));
+        actual = Primitives.BinToSrc(type, dst, out int readed, out object? obj);
+        Assert.AreEqual(EdfErr.IsOk, actual);
+        Assert.AreEqual(4, readed);
+        Assert.AreEqual(value, obj);
+    }
+
+
+
+    [TestMethod]
+    public void TestSrcToBinToSrc()
     {
         //EdfErr.DstBufOverflow
         TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType.Int16, 123, new byte[1]);
         TrySrcToBin_DstLenLessPoTypeSize_ErrDstBufOverflow(PoType.String, "1234", new byte[1]);
+
         //Struct
         TrySrcToBin_ObjIsStruct_ErrWrongType(PoType.Struct, 1, new byte[1]);
+
         //UInt8
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, byte.MinValue, new byte[1]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, byte.MaxValue, new byte[1]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt8, (byte)123, new byte[1]);
+        TrySrcBinToSrc(PoType.UInt8, byte.MinValue, [0x00]);
+        TrySrcBinToSrc(PoType.UInt8, byte.MaxValue, [0xFF]);
+        TrySrcBinToSrc(PoType.UInt8, (byte)123, [0x7B]);
+
         //Int8
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, sbyte.MaxValue, new byte[1]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, sbyte.MinValue, new byte[1]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, (sbyte)-123, new byte[1]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int8, (sbyte)123, new byte[1]);
+        TrySrcBinToSrc(PoType.Int8, sbyte.MaxValue, [0x7F]);
+        TrySrcBinToSrc(PoType.Int8, sbyte.MinValue, [0x80]);
+        TrySrcBinToSrc(PoType.Int8, (sbyte)-123, [0x85]);
+        TrySrcBinToSrc(PoType.Int8, (sbyte)123, [0x7B]);
+
         //UInt16
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, ushort.MaxValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, ushort.MinValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt16, (ushort)123, new byte[2]);
+        TrySrcBinToSrc(PoType.UInt16, ushort.MaxValue, [0xFF, 0xFF]);
+        TrySrcBinToSrc(PoType.UInt16, ushort.MinValue, [0x00, 0x00]);
+        TrySrcBinToSrc(PoType.UInt16, (ushort)45662, [0x5E, 0xB2]);
+
         //Int16
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, short.MaxValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, short.MinValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, (short)123, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int16, (short)-123, new byte[2]);
+        TrySrcBinToSrc(PoType.Int16, short.MaxValue, [0xFF, 0x7F]);
+        TrySrcBinToSrc(PoType.Int16, short.MinValue, [0x00, 0x80]);
+        TrySrcBinToSrc(PoType.Int16, (short)20520, [0x28, 0x50]);
+        TrySrcBinToSrc(PoType.Int16, (short)-20520, [0xD8, 0xAF]);
+
         //UInt32
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, uint.MaxValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, uint.MinValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt32, (uint)123, new byte[4]);
+        TrySrcBinToSrc(PoType.UInt32, uint.MaxValue, [0xff, 0xff, 0xff, 0xff]);
+        TrySrcBinToSrc(PoType.UInt32, uint.MinValue, [0x00, 0x00, 0x00, 0x00]);
+        TrySrcBinToSrc(PoType.UInt32, (uint)123456, [0x40, 0xE2, 0x01, 0x00]);
+
         //Int32
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, int.MaxValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, int.MinValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, (int)123, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int32, (int)-123, new byte[4]);
+        TrySrcBinToSrc(PoType.Int32, int.MaxValue, [0xff, 0xff, 0xff, 0x7f]);
+        TrySrcBinToSrc(PoType.Int32, int.MinValue, [0x00, 0x00, 0x00, 0x80]);
+        TrySrcBinToSrc(PoType.Int32, (int)123456, [0x40, 0xE2, 0x01, 0x00]);
+        TrySrcBinToSrc(PoType.Int32, (int)-123456, [0xC0, 0x1D, 0xFE, 0xFF]);
+
         //UInt64
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, ulong.MaxValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, ulong.MinValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.UInt64, (ulong)123, new byte[8]);
+        TrySrcBinToSrc(PoType.UInt64, ulong.MaxValue, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+        TrySrcBinToSrc(PoType.UInt64, ulong.MinValue, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        TrySrcBinToSrc(PoType.UInt64, (ulong)652212, [0xB4, 0xF3, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
         //Int64
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, long.MaxValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, long.MinValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, (long)123, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Int64, (long)-123, new byte[8]);
+        TrySrcBinToSrc(PoType.Int64, long.MaxValue, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f]);
+        TrySrcBinToSrc(PoType.Int64, long.MinValue, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80]);
+        TrySrcBinToSrc(PoType.Int64, (long)652212, [0xB4, 0xF3, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00]);
+        TrySrcBinToSrc(PoType.Int64, (long)-652212, [0x4C, 0x0C, 0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+
         //Half
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.MaxValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.MinValue, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, (Half)6.75, new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, (Half)(-6.75), new byte[2]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Half, Half.NaN, new byte[2]);
+        TrySrcBinToSrc(PoType.Half, Half.MaxValue, [0xFF, 0x7B]);
+        TrySrcBinToSrc(PoType.Half, Half.MinValue, [0xFF, 0xFB]);
+        TrySrcBinToSrc(PoType.Half, (Half)6.75, [0xC0, 0x46]);
+        TrySrcBinToSrc(PoType.Half, (Half)(-6.75), [0xC0, 0xC6]);
+
         //Single
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.MaxValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.MinValue, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, (float)6.75, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, (float)-6.75, new byte[4]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Single, float.NaN, new byte[4]);
+        TrySrcBinToSrc(PoType.Single, float.MaxValue, [0xFF, 0xFF, 0x7F, 0x7F]);
+        TrySrcBinToSrc(PoType.Single, float.MinValue, [0xFF, 0xFF, 0x7F, 0xFF]);
+        TrySrcBinToSrc(PoType.Single, (float)6.75, [0x00, 0x00, 0xD8, 0x40]);
+        TrySrcBinToSrc(PoType.Single, (float)-6.75, [0x00, 0x00, 0xD8, 0xC0]);
+
         //Double
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.MaxValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.MinValue, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, (double)6.75, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, (double)-6.75, new byte[8]);
-        TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Double, double.NaN, new byte[8]);
-        //Char
-        //       TrySrcBin_ObjIsStruct_ErrIsOk(PoType.Char, 'a', new byte[1]);
-        //String
-        TrySrcBin_ObjIsSting_ErrIsOk(PoType.String, "aaaaa A aaaaa", new byte[20]);
+        TrySrcBinToSrc(PoType.Double, double.MaxValue, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xef, 0x7f]);
+        TrySrcBinToSrc(PoType.Double, double.MinValue, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xef, 0xff]);
+        TrySrcBinToSrc(PoType.Double, (double)6.75, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1B, 0x40]);
+        TrySrcBinToSrc(PoType.Double, (double)-6.75, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1B, 0xC0]);
+        ////String
+        TrySrcBin_ObjIsSting_ErrIsOk(PoType.String, "aaaaa S", [0x07, 0x61, 0x61, 0x61, 0x61, 0x61, 0x20, 0x53]);
     }
+
+
+
 }
