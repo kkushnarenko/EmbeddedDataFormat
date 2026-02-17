@@ -18,6 +18,12 @@ public static class Primitives
         dst.Write(b.Slice(0, w));
         return w;
     }
+    public static int SrcToBinRef(this ref Span<byte> dst, PoType t, object obj)
+    {
+        var w = SrcToBin(dst, t, obj);
+        dst = dst.Slice(w);
+        return w;
+    }
     public static int SrcToBin(this Span<byte> dst, PoType t, object obj)
     {
         var ret = TrySrcToBin(t, obj, dst, out var w);
@@ -66,7 +72,7 @@ public static class Primitives
         }
         return EdfErr.IsOk;
     }
-    public static EdfErr BinToSrc(PoType t, ReadOnlySpan<byte> src, out int r, out object? obj)
+    public static EdfErr TryBinToSrc(PoType t, ReadOnlySpan<byte> src, out int r, out object? obj)
     {
         obj = default;
         r = t.GetSizeOf();
@@ -97,40 +103,11 @@ public static class Primitives
         }
         return EdfErr.IsOk;
     }
-    public static EdfErr TrySrcToEdf(Span<byte> dst, object obj, out int w)
-    {
-        switch (obj)
-        {
-            default: w = 0; return EdfErr.WrongType;
-            case PoType pt: dst[0] = (byte)pt; w = 1; break;
-            case byte b: dst[0] = (byte)b; w = 1; break;
-            case sbyte sb: dst[0] = (byte)sb; w = 1; break;
-            case UInt16 u16: MemoryMarshal.Write(dst, u16); w = 2; break;
-            case Int16 i16: MemoryMarshal.Write(dst, i16); w = 2; break;
-            case UInt32 u32: MemoryMarshal.Write(dst, u32); w = 4; break;
-            case Int32 i32: MemoryMarshal.Write(dst, i32); w = 4; break;
-            case UInt64 u64: MemoryMarshal.Write(dst, u64); w = 8; break;
-            case Int64 i64: MemoryMarshal.Write(dst, i64); w = 8; break;
-            case Half h: MemoryMarshal.Write(dst, h); w = 2; break; ;
-            case Single f: MemoryMarshal.Write(dst, f); w = 4; break;
-            case Double d: MemoryMarshal.Write(dst, d); w = 1; break;
-            case String:
-                int len = EdfBinString.WriteBin((string)obj, dst);
-                if (0 > len)
-                {
-                    w = 0;
-                    return EdfErr.DstBufOverflow;
-                }
-                w = len;
-                break;
-        }
-        return EdfErr.IsOk;
-    }
 
     public static EdfErr TryFormat<T>(PoType t, T obj, Span<byte> dst, out int w)
         where T : IUtf8SpanFormattable
     {
-        if (obj.TryFormat(dst, out w, default, null))
+        if (obj.TryFormat(dst, out w, default, CultureInfo.InvariantCulture))
             return EdfErr.IsOk;
         return EdfErr.DstBufOverflow;
     }
@@ -156,10 +133,13 @@ public static class Primitives
                 {
                     Span<byte> buf = stackalloc byte[256];
                     w = Encoding.UTF8.GetBytes((string)obj, buf);
-                    if (w > dst.Length)
+                    if (w > dst.Length + 2)
                         return EdfErr.DstBufOverflow;
-                    buf.Slice(0, w).CopyTo(dst);
-                    return EdfErr.DstBufOverflow;
+                    dst[0] = (byte)'"';
+                    buf.Slice(0, w).CopyTo(dst.Slice(1));
+                    dst[w + 1] = (byte)'"';
+                    w += 2;
+                    return EdfErr.IsOk;
                 }
         }
         return EdfErr.WrongType;

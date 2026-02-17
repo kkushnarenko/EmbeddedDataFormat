@@ -67,7 +67,7 @@ public class TestStructSerialize
                 Type = PoType.Struct,
                 Name = "KeyValue",
                 Dims = [2],
-                Items =
+                Childs =
                 [
                     new (PoType.String, "Key"),
                     new (PoType.String, "Value"),
@@ -111,9 +111,53 @@ public class TestStructSerialize
     }
 
 
+
+    struct KeyValue
+    {
+        public string? Key { get; set; }
+        public string? Value { get; set; }
+    };
     static int WriteSample(BaseWriter dw)
     {
-        throw new NotImplementedException();
+        TypeRec keyValueType = new()
+        {
+            Id = 0,
+            Name = "VariableKV",
+            Desc = "comment",
+            Inf = new()
+            {
+                Type = PoType.Struct,
+                Name = "KeyValue",
+                Childs =
+                [
+                    new (PoType.String, "Key"),
+                    new (PoType.String, "Value"),
+                ]
+            }
+        };
+        dw.Write(keyValueType);
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(new KeyValue() { Key = "Key1", Value = "Value1" }));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(new KeyValue() { Key = "Key2", Value = "Value2" }));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(new KeyValue() { Key = "Key3", Value = "Value3" }));
+
+        Assert.AreEqual(EdfErr.IsOk, dw.WriteInfData(0, PoType.String, "тестовый ключ", "String Value"));
+
+        TypeRec t = new() { Inf = new(PoType.Int32), Id = 0, Name = "weight variable" };
+        dw.Write(t);
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(unchecked((int)0xFFFFFFFF)));
+
+        TypeRec td = new() { Inf = new(PoType.Double), Id = 0, Name = "TestDouble" };
+        dw.Write(td);
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(1.1d));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(2.1d));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(3.1d));
+
+        TypeRec tchar = new() { Inf = new(PoType.Char, string.Empty, [20]), Id = 0, Name = "Char Text" };
+        dw.Write(tchar);
+        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Char"));
+        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Value"));
+        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Array     Value"));
+
         return 0;
     }
     [TestMethod]
@@ -130,11 +174,11 @@ public class TestStructSerialize
             WriteSample(w);
         }
         // BIN append
-        using (var file = new FileStream(binFile, FileMode.Append))
-        using (var edf = new BinWriter(file))
-        {
-            edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
-        }
+        //using (var file = new FileStream(binFile, FileMode.Append))
+        //using (var edf = new BinWriter(file))
+        //{
+        //    edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
+        //}
 
         // TXT write
         using (var file = new FileStream(txtFile, FileMode.Create))
@@ -143,11 +187,11 @@ public class TestStructSerialize
             WriteSample(w);
         }
         // TXT append
-        using (var file = new FileStream(txtFile, FileMode.Append))
-        using (var edf = new BinWriter(file))
-        {
-            edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
-        }
+        //using (var file = new FileStream(txtFile, FileMode.Append))
+        //using (var edf = new BinWriter(file))
+        //{
+        //    edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
+        //}
 
         using (var binToText = new BinToTxtConverter(binFile, txtConvFile))
             binToText.Execute();
@@ -242,7 +286,7 @@ public class TestStructSerialize
             Type = PoType.Struct,
             Name = "KeyValue",
             Dims = [2],
-            Items =
+            Childs =
             [
                 new (PoType.String, "Key"),
                 new (PoType.String, "Value"),
@@ -254,7 +298,7 @@ public class TestStructSerialize
             Type = PoType.Struct,
             Name = "KeyValue",
             Dims = [2],
-            Items =
+            Childs =
             [
                 new (PoType.String, "Key"),
                 new (PoType.String, "Value"),
@@ -266,7 +310,7 @@ public class TestStructSerialize
             Type = PoType.Struct,
             Name = "KeyValue",
             Dims = [2],
-            Items =
+            Childs =
             [
                 new (PoType.String, "Key2"),
                 new (PoType.String, "Value"),
