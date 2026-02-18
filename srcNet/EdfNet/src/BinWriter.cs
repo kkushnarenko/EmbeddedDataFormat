@@ -15,7 +15,8 @@ public class BinWriter : BaseWriter
         : base(cfg ?? Header.Default)
     {
         _bw = stream;
-        Write(Cfg);
+        if (0 == stream.Position)
+            Write(Cfg);
     }
     protected override void Dispose(bool disposing)
     {
@@ -55,7 +56,7 @@ public class BinWriter : BaseWriter
         dst.SrcToBinRef(PoType.UInt16, h.Encoding);
         dst.SrcToBinRef(PoType.UInt16, h.Blocksize);
         dst.SrcToBinRef(PoType.UInt32, h.Flags);
-        WriteBlock(_blkData.AsSpan(0, 16), BlockType.VarData);
+        WriteBlock(_blkData.AsSpan(0, 16), BlockType.Header);
     }
     public override void Write(TypeRec t)
     {

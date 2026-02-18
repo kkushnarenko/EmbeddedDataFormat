@@ -1,5 +1,6 @@
 using NetEdf;
 using NetEdf.src;
+using System.Text;
 namespace NetEdfTest;
 
 
@@ -37,6 +38,12 @@ public class TestStructSerialize
     static string _testPath = $"{Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)}";
     static string GetTestFilePath(string filename) => Path.Combine(_testPath, filename);
 
+    static byte[] GetCString(string str, int len)
+    {
+        var ret = new byte[len];
+        Encoding.UTF8.GetBytes(str, ret.AsSpan());
+        return ret;
+    }
 
     class KeyValueStruct : IEquatable<KeyValueStruct>
     {
@@ -117,6 +124,22 @@ public class TestStructSerialize
         public string? Key { get; set; }
         public string? Value { get; set; }
     };
+    struct ComplexVariable
+    {
+        public long Time { get; set; }
+        public struct StateT
+        {
+            public sbyte Text { get; set; }
+            public struct PosT
+            {
+                public int x { get; set; }
+                public int y { get; set; }
+            };
+            public PosT Pos { get; set; }
+            public double[,] Temp { get; set; }
+        };
+        public StateT[] State { get; set; }
+    };
     static int WriteSample(BaseWriter dw)
     {
         TypeRec keyValueType = new()
@@ -154,10 +177,48 @@ public class TestStructSerialize
 
         TypeRec tchar = new() { Inf = new(PoType.Char, string.Empty, [20]), Id = 0, Name = "Char Text" };
         dw.Write(tchar);
-        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Char"));
-        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Value"));
-        //Assert.AreEqual(EdfErr.IsOk, dw.Write("Array     Value"));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(GetCString("Char", 20)));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(GetCString("Value", 20)));
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(GetCString("Array     Value", 20)));
 
+        TypeInf comlexVarInf = new()
+        {
+            Type = PoType.Struct,
+            Name = "ComplexVariable",
+            Childs =
+            [
+                new (PoType.Int64, "time"),
+                new ()
+                {
+                    Type = PoType.Struct, Name = "State", Dims = [3],
+                    Childs =
+                    [
+                        new (PoType.Int8, "text"),
+                        new(PoType.Struct,"Pos")
+                        {
+                            Childs =
+                            [
+                                new (PoType.Int32, "x"),
+                                new (PoType.Int32, "y"),
+                            ]
+                        },
+                        new (PoType.Double, "Temp", [2,2]),
+                    ]
+                }
+            ]
+        };
+        dw.Write(new TypeRec() { Inf = comlexVarInf });
+        var cv = new ComplexVariable()
+        {
+            Time = -123,
+            State =
+            [
+                new(){ Text = 1,Pos = new (){x=11,y=12 },Temp = new double[2,2]{ {1.1,1.2 },{1.3,1.4 } }  },
+                new(){ Text = 2,Pos = new (){x=21,y=22 },Temp = new double[2,2]{ {2.1,2.2 },{2.3,2.4 } }  },
+                new(){ Text = 3,Pos = new (){x=31,y=32 },Temp = new double[2,2]{ {3.1,3.2 },{3.3,3.4 } }  },
+            ]
+        };
+        Assert.AreEqual(EdfErr.IsOk, dw.Write(cv));
         return 0;
     }
     [TestMethod]
@@ -166,7 +227,6 @@ public class TestStructSerialize
         string binFile = GetTestFilePath("t_write.bdf");
         string txtFile = GetTestFilePath("t_write.tdf");
         string txtConvFile = GetTestFilePath("t_writeConv.tdf");
-
         // BIN write
         using (var file = new FileStream(binFile, FileMode.Create))
         using (var w = new BinWriter(file))
@@ -174,12 +234,19 @@ public class TestStructSerialize
             WriteSample(w);
         }
         // BIN append
-        //using (var file = new FileStream(binFile, FileMode.Append))
-        //using (var edf = new BinWriter(file))
-        //{
-        //    edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
-        //}
-
+        using (var file = new FileStream(binFile, FileMode.Open))
+        {
+            Header cfg;
+            using (var edf = new BinReader(file))
+            {
+                cfg = edf.Cfg;
+            }
+            file.Seek(0, SeekOrigin.End);
+            using (var edf = new BinWriter(file, cfg))
+            {
+                edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
+            }
+        }
         // TXT write
         using (var file = new FileStream(txtFile, FileMode.Create))
         using (var w = new TxtWriter(file))
@@ -187,19 +254,16 @@ public class TestStructSerialize
             WriteSample(w);
         }
         // TXT append
-        //using (var file = new FileStream(txtFile, FileMode.Append))
-        //using (var edf = new BinWriter(file))
-        //{
-        //    edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
-        //}
-
+        using (var file = new FileStream(txtFile, FileMode.Append))
+        using (var edf = new TxtWriter(file))
+        {
+            edf.WriteInfData(0, PoType.Int32, "Int32 Key", unchecked((int)0xb1b2b3b4));
+        }
         using (var binToText = new BinToTxtConverter(binFile, txtConvFile))
             binToText.Execute();
-
         bool isEqual = FileUtils.FileCompare(txtFile, txtConvFile);
         Assert.IsTrue(isEqual);
     }
-
 
     static int WriteBigVar(BaseWriter dw)
     {
