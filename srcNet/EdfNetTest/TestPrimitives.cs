@@ -1,8 +1,5 @@
-using NetEdf;
 using NetEdf.src;
 using System.Buffers.Binary;
-using System.Security.Cryptography;
-using System.Xml.Serialization;
 
 namespace NetEdfTest;
 
@@ -15,7 +12,7 @@ public class TestPrimitives
         Span<byte> dst = new byte[20];
         Span<byte> expected = [0x7B];
 
-        var actual = Primitives.SrcToBinRef(ref dst,PoType.Int8, (sbyte)123);
+        var actual = Primitives.SrcToBinRef(ref dst, PoType.Int8, (sbyte)123);
 
         Assert.AreEqual(expected.Length, actual);
     }
@@ -24,7 +21,7 @@ public class TestPrimitives
         where T : struct
     {
         Span<byte> dst = new byte[10];
-   
+
         var actual = Primitives.TrySrcToBin(type, value, dst, out int w);
 
         Assert.AreEqual(EdfErr.IsOk, actual);
@@ -52,12 +49,12 @@ public class TestPrimitives
     public void TrySrcBin_ObjIsString(PoType type, object value, Span<byte> expected)
     {
         Span<byte> dst = new byte[20];
-       
+
         var actual = Primitives.TrySrcToBin(type, value, dst, out int w);
 
         Assert.AreEqual(EdfErr.IsOk, actual);
         Assert.AreEqual(expected.Length, w);
-        Assert.IsTrue(dst.Slice(0,w).SequenceEqual(expected));
+        Assert.IsTrue(dst.Slice(0, w).SequenceEqual(expected));
 
         actual = Primitives.TryBinToSrc(type, dst, out int r, out object? obj);
 
@@ -72,7 +69,7 @@ public class TestPrimitives
     {
         TrySrcToBin_ErrDstBufOverflow(PoType.Int16, 123, new byte[1]);
         TrySrcToBin_ErrDstBufOverflow(PoType.String, "1234", new byte[1]);
-   
+
     }
 
     [TestMethod]
@@ -191,7 +188,7 @@ public class TestPrimitives
 
         Assert.AreEqual(EdfErr.IsOk, actual);
         Assert.AreEqual(expected.Length, w);
-        Assert.IsTrue(dst.Slice(0,w).SequenceEqual(expected));
+        Assert.IsTrue(dst.Slice(0, w).SequenceEqual(expected));
 
     }
     [TestMethod]
@@ -239,7 +236,7 @@ public class TestPrimitives
     public void TestTrySrcToTxt_UInt16()
     {
         SrcToText_ObjStruct(PoType.UInt16, ushort.MinValue, [0x30]);
-        SrcToText_ObjStruct(PoType.UInt16, ushort.MaxValue, [0x36, 0x35,0x35,0x33,0x35]);
+        SrcToText_ObjStruct(PoType.UInt16, ushort.MaxValue, [0x36, 0x35, 0x35, 0x33, 0x35]);
         SrcToText_ObjStruct(PoType.UInt16, (ushort)1233, [0x31, 0x32, 0x33, 0x33]);
     }
 
@@ -342,7 +339,7 @@ public class TestPrimitives
         var actual = Primitives.TrySrcToTxt(PoType.String, "AAAAAAAAAAAAAAAAA SSSSSSSSSSSSSSS", dst, out int w);
 
         Assert.AreEqual(EdfErr.DstBufOverflow, actual);
-       
+
     }
     [TestMethod]
     public void TestTrySrcToTxt_String()
