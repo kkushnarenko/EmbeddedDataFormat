@@ -46,11 +46,39 @@ partial class ComplexVariable1
         {
             public int x { get; set; }
             public int y { get; set; }
-        };
+            public IEnumerable<object> Decompose1()
+            {
+                yield return x;
+                yield return y;
+            }
+        }
         public PosT Pos { get; set; }
         public double[,] Temp { get; set; }
-    };
+
+        public IEnumerable<object> Decompose1()
+        {
+            yield return Text;
+            foreach (var item in Pos.Decompose1())
+                yield return item;
+            //yield return Pos.Decompose1();
+            foreach (var item2 in Temp)
+            {
+                yield return item2;
+            }
+        }
+    }
     public StateT[] State { get; set; }
+
+    public IEnumerable<object> Decompose1()
+    {
+        yield return Time;
+        foreach (var item in State)
+        {
+            foreach (var subItem in item.Decompose1())
+                yield return subItem;
+        }
+
+    }
 };
 
 [TestClass]
@@ -64,6 +92,9 @@ public class PrimitiveDecomposerTest
         var decomposer = new PrimitiveDecomposer(num).ToArray();
 
         Assert.AreEqual(12365, decomposer[0]);
+
+        var xdf = new ComplexVariable1.StateT();
+        xdf.Decompose();
     }
 
     [TestMethod]
@@ -119,11 +150,13 @@ public class PrimitiveDecomposerTest
                 new(){ Text = 3,Pos = new (){x=31,y=32 },Temp = new double[2,2]{ {3.1,3.2 },{3.3,3.4 } }  },
             ]
         };
-        var dec = cv.Decompose();
+        var dec = cv.Decompose().ToArray();
 
         KeyValueStruct val1 = new() { Key = "Key1", Value = "Value1", Arr = [11, 12, 13] };
         KeyValueStruct val2 = new() { Key = "Key2", Value = "Value2", Arr = [21, 22, 23] };
-        KeyValueStructArr kvArr = new(){kvArr = [val1, val2]};
-        flatObj = kvArr.Decompose().ToArray();
+        KeyValueStructArr kvArr = new() { kvArr = [val1, val2] };
+        var flatObj1 = val1.Decompose().ToArray();
+        flatObj1 = val2.Decompose().ToArray();
+        flatObj1 = kvArr.Decompose().ToArray();
     }
 }

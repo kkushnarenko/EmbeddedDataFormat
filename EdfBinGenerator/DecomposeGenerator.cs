@@ -148,19 +148,31 @@ partial {strOrCls} {classSymbol.Name}
         else if (prop is IArrayTypeSymbol array)
         {
             string counter = $"item{indent}";
-            sb.AppendLine($"{Tab(indent)}foreach(var {counter} in {pname})");
-            sb.AppendLine($"{Tab(indent)}{{");
-            GeneratePropertyWrite(array.ElementType, sb, counter, (byte)(indent+1));
-            sb.AppendLine($"{Tab(indent)}}}");
+            sb.AppendLine($"{Tab(2)}foreach(var {counter} in {pname})");
+            //sb.AppendLine($"{Tab(2)}{{");
+         
+            if (GetTypeProp(array.ElementType.SpecialType))
+                GeneratePropertyWrite(array.ElementType, sb, counter, (byte)(indent + 1));
+            else
+            {
+                sb.AppendLine($"{Tab(3)}foreach(var subitem in {counter}.Decompose())");
+                sb.AppendLine($"{Tab(4)} yield return subitem;");
+            }
+            //sb.AppendLine($"{Tab(2)}}}");
         }
         else
         {
+            string counter = $"item{indent}";
             var properties = prop.GetMembers().OfType<IPropertySymbol>().
                 Where(p => !p.IsStatic && p.DeclaredAccessibility == Accessibility.Public);
-            foreach (var property in properties)
-            {
-                GeneratePropertyWrite(property.Type, sb, $"{pname}.{property.Name}", indent);
-            }
+            sb.AppendLine($"foreach(var item in {pname}.Decompose())");
+                sb.AppendLine($"yield return item;");
+            //sb.AppendLine($"{counter}.Decompose();");
+            //foreach (var property in properties)
+            //{
+                
+            //    //GeneratePropertyWrite(property.Type, sb, $"{pname}", indent);
+            //}
         }
     }
 }
